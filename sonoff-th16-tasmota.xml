@@ -1,0 +1,536 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<zabbix_export>
+    <version>5.0</version>
+    <date>2021-07-27T06:34:59Z</date>
+    <groups>
+        <group>
+            <name>Templates/Environment Monitoring</name>
+        </group>
+    </groups>
+    <templates>
+        <template>
+            <template>Template Sonoff TH16 Tasmota</template>
+            <name>Template Sonoff TH16 Tasmota</name>
+            <templates>
+                <template>
+                    <name>Template Module ICMP Ping</name>
+                </template>
+            </templates>
+            <groups>
+                <group>
+                    <name>Templates/Environment Monitoring</name>
+                </group>
+            </groups>
+            <applications>
+                <application>
+                    <name>General</name>
+                </application>
+                <application>
+                    <name>Outputs</name>
+                </application>
+                <application>
+                    <name>Sensors</name>
+                </application>
+            </applications>
+            <items>
+                <item>
+                    <name>Reboot reason</name>
+                    <type>DEPENDENT</type>
+                    <key>general.rebootreason</key>
+                    <delay>0</delay>
+                    <history>365d</history>
+                    <trends>0</trends>
+                    <value_type>TEXT</value_type>
+                    <applications>
+                        <application>
+                            <name>General</name>
+                        </application>
+                    </applications>
+                    <preprocessing>
+                        <step>
+                            <type>JSONPATH</type>
+                            <params>$.StatusPRM.RestartReason</params>
+                        </step>
+                        <step>
+                            <type>DISCARD_UNCHANGED_HEARTBEAT</type>
+                            <params>3600</params>
+                        </step>
+                    </preprocessing>
+                    <master_item>
+                        <key>general.status</key>
+                    </master_item>
+                </item>
+                <item>
+                    <name>Status</name>
+                    <type>HTTP_AGENT</type>
+                    <key>general.status</key>
+                    <history>1h</history>
+                    <trends>0</trends>
+                    <value_type>TEXT</value_type>
+                    <authtype>BASIC</authtype>
+                    <username>{$LOGIN}</username>
+                    <password>{$PASSWORD}</password>
+                    <applications>
+                        <application>
+                            <name>General</name>
+                        </application>
+                    </applications>
+                    <timeout>10s</timeout>
+                    <url>http://{HOST.IP}/cm</url>
+                    <query_fields>
+                        <query_field>
+                            <name>cmnd</name>
+                            <value>status 0</value>
+                        </query_field>
+                    </query_fields>
+                    <triggers>
+                        <trigger>
+                            <expression>{nodata(300)}=1</expression>
+                            <name>Can not get status for 5m</name>
+                            <url>http://{HOST.IP}</url>
+                            <priority>HIGH</priority>
+                            <description>Can not get data from device for 5 minutes. If ping is OK, check HTTP connection to device</description>
+                            <manual_close>YES</manual_close>
+                            <dependencies>
+                                <dependency>
+                                    <name>Unavailable by ICMP ping</name>
+                                    <expression>{Template Sonoff TH16 Tasmota:icmpping.max(#3)}=0</expression>
+                                </dependency>
+                            </dependencies>
+                        </trigger>
+                    </triggers>
+                </item>
+                <item>
+                    <name>Uptime</name>
+                    <type>DEPENDENT</type>
+                    <key>general.uptime</key>
+                    <delay>0</delay>
+                    <trends>0</trends>
+                    <units>s</units>
+                    <description>Device uptime in seconds</description>
+                    <applications>
+                        <application>
+                            <name>General</name>
+                        </application>
+                    </applications>
+                    <preprocessing>
+                        <step>
+                            <type>JSONPATH</type>
+                            <params>$.StatusSTS.UptimeSec</params>
+                        </step>
+                    </preprocessing>
+                    <master_item>
+                        <key>general.status</key>
+                    </master_item>
+                    <triggers>
+                        <trigger>
+                            <expression>{last()}&lt;600</expression>
+                            <recovery_mode>NONE</recovery_mode>
+                            <name>Device rebooted (uptime was less than 10m)</name>
+                            <opdata>Uptime: {ITEM.LASTVALUE1}</opdata>
+                            <url>http://{HOST.IP}</url>
+                            <priority>INFO</priority>
+                            <manual_close>YES</manual_close>
+                            <dependencies>
+                                <dependency>
+                                    <name>Can not get status for 5m</name>
+                                    <expression>{Template Sonoff TH16 Tasmota:general.status.nodata(300)}=1</expression>
+                                </dependency>
+                            </dependencies>
+                        </trigger>
+                    </triggers>
+                </item>
+                <item>
+                    <name>Wifi signal strength</name>
+                    <type>DEPENDENT</type>
+                    <key>general.wifisignal</key>
+                    <delay>0</delay>
+                    <value_type>FLOAT</value_type>
+                    <units>dBm</units>
+                    <applications>
+                        <application>
+                            <name>General</name>
+                        </application>
+                    </applications>
+                    <preprocessing>
+                        <step>
+                            <type>JSONPATH</type>
+                            <params>$.StatusSTS.Wifi.Signal</params>
+                        </step>
+                    </preprocessing>
+                    <master_item>
+                        <key>general.status</key>
+                    </master_item>
+                    <triggers>
+                        <trigger>
+                            <expression>{last(#3)}&lt;{$WIFIWARN}</expression>
+                            <name>Wifi signal is unstable</name>
+                            <opdata>{ITEM.LASTVALUE1}</opdata>
+                            <url>http://{HOST.IP}</url>
+                            <priority>WARNING</priority>
+                            <manual_close>YES</manual_close>
+                            <dependencies>
+                                <dependency>
+                                    <name>Can not get status for 5m</name>
+                                    <expression>{Template Sonoff TH16 Tasmota:general.status.nodata(300)}=1</expression>
+                                </dependency>
+                            </dependencies>
+                        </trigger>
+                    </triggers>
+                </item>
+                <item>
+                    <name>Relay state</name>
+                    <type>DEPENDENT</type>
+                    <key>outputs.relay</key>
+                    <delay>0</delay>
+                    <trends>0</trends>
+                    <applications>
+                        <application>
+                            <name>Outputs</name>
+                        </application>
+                    </applications>
+                    <valuemap>
+                        <name>General ON OFF</name>
+                    </valuemap>
+                    <preprocessing>
+                        <step>
+                            <type>JSONPATH</type>
+                            <params>$.Status.Power</params>
+                        </step>
+                    </preprocessing>
+                    <master_item>
+                        <key>general.status</key>
+                    </master_item>
+                </item>
+                <item>
+                    <name>Dew Point</name>
+                    <type>DEPENDENT</type>
+                    <key>sensors.dewpoint</key>
+                    <delay>0</delay>
+                    <value_type>FLOAT</value_type>
+                    <units>°C</units>
+                    <applications>
+                        <application>
+                            <name>Sensors</name>
+                        </application>
+                    </applications>
+                    <preprocessing>
+                        <step>
+                            <type>JSONPATH</type>
+                            <params>$.StatusSNS.SI7021.DewPoint</params>
+                        </step>
+                    </preprocessing>
+                    <master_item>
+                        <key>general.status</key>
+                    </master_item>
+                </item>
+                <item>
+                    <name>Humidity</name>
+                    <type>DEPENDENT</type>
+                    <key>sensors.humidity</key>
+                    <delay>0</delay>
+                    <value_type>FLOAT</value_type>
+                    <units>%</units>
+                    <applications>
+                        <application>
+                            <name>Sensors</name>
+                        </application>
+                    </applications>
+                    <preprocessing>
+                        <step>
+                            <type>JSONPATH</type>
+                            <params>$.StatusSNS.SI7021.Humidity</params>
+                        </step>
+                    </preprocessing>
+                    <master_item>
+                        <key>general.status</key>
+                    </master_item>
+                    <triggers>
+                        <trigger>
+                            <expression>{last(#3)}&gt;{$HUMCRIT}</expression>
+                            <name>Humidity exceeds critical threshold</name>
+                            <opdata>Humidity: {ITEM.LASTVALUE1}</opdata>
+                            <url>http://{HOST.IP}</url>
+                            <priority>HIGH</priority>
+                            <manual_close>YES</manual_close>
+                            <dependencies>
+                                <dependency>
+                                    <name>Can not get status for 5m</name>
+                                    <expression>{Template Sonoff TH16 Tasmota:general.status.nodata(300)}=1</expression>
+                                </dependency>
+                            </dependencies>
+                        </trigger>
+                        <trigger>
+                            <expression>{last(#3)}&gt;{$HUMWARN}</expression>
+                            <name>Humidity exceeds warning threshold</name>
+                            <opdata>Humidity: {ITEM.LASTVALUE1}</opdata>
+                            <url>http://{HOST.IP}</url>
+                            <priority>WARNING</priority>
+                            <manual_close>YES</manual_close>
+                            <dependencies>
+                                <dependency>
+                                    <name>Can not get status for 5m</name>
+                                    <expression>{Template Sonoff TH16 Tasmota:general.status.nodata(300)}=1</expression>
+                                </dependency>
+                                <dependency>
+                                    <name>Humidity exceeds critical threshold</name>
+                                    <expression>{Template Sonoff TH16 Tasmota:sensors.humidity.last(#3)}&gt;{$HUMCRIT}</expression>
+                                </dependency>
+                            </dependencies>
+                        </trigger>
+                    </triggers>
+                </item>
+                <item>
+                    <name>Temperature</name>
+                    <type>DEPENDENT</type>
+                    <key>sensors.temperature</key>
+                    <delay>0</delay>
+                    <value_type>FLOAT</value_type>
+                    <units>°C</units>
+                    <applications>
+                        <application>
+                            <name>Sensors</name>
+                        </application>
+                    </applications>
+                    <preprocessing>
+                        <step>
+                            <type>JSONPATH</type>
+                            <params>$.StatusSNS.SI7021.Temperature</params>
+                        </step>
+                    </preprocessing>
+                    <master_item>
+                        <key>general.status</key>
+                    </master_item>
+                    <triggers>
+                        <trigger>
+                            <expression>{last(#3)}&gt;{$TEMPCRIT}</expression>
+                            <name>Temperature exceeds critical threshold</name>
+                            <opdata>Temperature: {ITEM.LASTVALUE1}</opdata>
+                            <url>http://{HOST.IP}</url>
+                            <priority>HIGH</priority>
+                            <manual_close>YES</manual_close>
+                            <dependencies>
+                                <dependency>
+                                    <name>Can not get status for 5m</name>
+                                    <expression>{Template Sonoff TH16 Tasmota:general.status.nodata(300)}=1</expression>
+                                </dependency>
+                            </dependencies>
+                        </trigger>
+                        <trigger>
+                            <expression>{last(#3)}&gt;{$TEMPWARN}</expression>
+                            <name>Temperature exceeds warning threshold</name>
+                            <opdata>Temperature: {ITEM.LASTVALUE1}</opdata>
+                            <url>http://{HOST.IP}</url>
+                            <priority>WARNING</priority>
+                            <manual_close>YES</manual_close>
+                            <dependencies>
+                                <dependency>
+                                    <name>Can not get status for 5m</name>
+                                    <expression>{Template Sonoff TH16 Tasmota:general.status.nodata(300)}=1</expression>
+                                </dependency>
+                                <dependency>
+                                    <name>Temperature exceeds critical threshold</name>
+                                    <expression>{Template Sonoff TH16 Tasmota:sensors.temperature.last(#3)}&gt;{$TEMPCRIT}</expression>
+                                </dependency>
+                            </dependencies>
+                        </trigger>
+                    </triggers>
+                </item>
+            </items>
+            <macros>
+                <macro>
+                    <macro>{$HUMCRIT}</macro>
+                    <value>90</value>
+                    <description>Humidity critical</description>
+                </macro>
+                <macro>
+                    <macro>{$HUMWARN}</macro>
+                    <value>80</value>
+                    <description>Humidity warning</description>
+                </macro>
+                <macro>
+                    <macro>{$LOGIN}</macro>
+                    <value>admin</value>
+                    <description>Login name for tasmota web interface</description>
+                </macro>
+                <macro>
+                    <macro>{$PASSWORD}</macro>
+                    <description>Password for tasmota web interface</description>
+                </macro>
+                <macro>
+                    <macro>{$TEMPCRIT}</macro>
+                    <value>32</value>
+                    <description>Temperature critical</description>
+                </macro>
+                <macro>
+                    <macro>{$TEMPWARN}</macro>
+                    <value>28</value>
+                    <description>Temperature warning</description>
+                </macro>
+                <macro>
+                    <macro>{$WIFIWARN}</macro>
+                    <value>-75</value>
+                    <description>Wifi signal threshold. Signal lower than this value will generate warning</description>
+                </macro>
+            </macros>
+            <screens>
+                <screen>
+                    <name>TH16 all data</name>
+                    <hsize>2</hsize>
+                    <vsize>2</vsize>
+                    <screen_items>
+                        <screen_item>
+                            <resourcetype>0</resourcetype>
+                            <style>0</style>
+                            <resource>
+                                <name>Temperature and humidity</name>
+                                <host>Template Sonoff TH16 Tasmota</host>
+                            </resource>
+                            <width>450</width>
+                            <height>250</height>
+                            <x>0</x>
+                            <y>0</y>
+                            <colspan>1</colspan>
+                            <rowspan>1</rowspan>
+                            <elements>0</elements>
+                            <valign>0</valign>
+                            <halign>0</halign>
+                            <dynamic>0</dynamic>
+                            <sort_triggers>0</sort_triggers>
+                            <url/>
+                            <application/>
+                            <max_columns>3</max_columns>
+                        </screen_item>
+                        <screen_item>
+                            <resourcetype>0</resourcetype>
+                            <style>0</style>
+                            <resource>
+                                <name>Wifi signal strength</name>
+                                <host>Template Sonoff TH16 Tasmota</host>
+                            </resource>
+                            <width>450</width>
+                            <height>250</height>
+                            <x>1</x>
+                            <y>0</y>
+                            <colspan>1</colspan>
+                            <rowspan>1</rowspan>
+                            <elements>0</elements>
+                            <valign>0</valign>
+                            <halign>0</halign>
+                            <dynamic>0</dynamic>
+                            <sort_triggers>0</sort_triggers>
+                            <url/>
+                            <application/>
+                            <max_columns>3</max_columns>
+                        </screen_item>
+                        <screen_item>
+                            <resourcetype>11</resourcetype>
+                            <style>0</style>
+                            <resource>0</resource>
+                            <width>450</width>
+                            <height>250</height>
+                            <x>0</x>
+                            <y>1</y>
+                            <colspan>1</colspan>
+                            <rowspan>1</rowspan>
+                            <elements>0</elements>
+                            <valign>0</valign>
+                            <halign>0</halign>
+                            <dynamic>0</dynamic>
+                            <sort_triggers>0</sort_triggers>
+                            <url>http://{HOST.IP}</url>
+                            <application/>
+                            <max_columns>3</max_columns>
+                        </screen_item>
+                    </screen_items>
+                </screen>
+            </screens>
+        </template>
+    </templates>
+    <triggers>
+        <trigger>
+            <expression>{Template Sonoff TH16 Tasmota:sensors.temperature.last(#3)}&lt;={Template Sonoff TH16 Tasmota:sensors.dewpoint.last()}</expression>
+            <name>Temperature is at dew point or lower</name>
+            <opdata>Temperature: {ITEM.LASTVALUE1}</opdata>
+            <url>http://{HOST.IP}</url>
+            <priority>HIGH</priority>
+            <description>Temperature is at dew point or lower. You shoud check the environment and try to raise temperature or lower humidity level</description>
+            <manual_close>YES</manual_close>
+            <dependencies>
+                <dependency>
+                    <name>Can not get status for 5m</name>
+                    <expression>{Template Sonoff TH16 Tasmota:general.status.nodata(300)}=1</expression>
+                </dependency>
+            </dependencies>
+        </trigger>
+        <trigger>
+            <expression>{Template Sonoff TH16 Tasmota:sensors.temperature.last(#3)}+2&lt;={Template Sonoff TH16 Tasmota:sensors.dewpoint.last()}</expression>
+            <name>Temperature is close to dew point</name>
+            <opdata>Temperature: {ITEM.LASTVALUE1}</opdata>
+            <url>http://{HOST.IP}</url>
+            <priority>WARNING</priority>
+            <manual_close>YES</manual_close>
+            <dependencies>
+                <dependency>
+                    <name>Can not get status for 5m</name>
+                    <expression>{Template Sonoff TH16 Tasmota:general.status.nodata(300)}=1</expression>
+                </dependency>
+                <dependency>
+                    <name>Temperature is at dew point or lower</name>
+                    <expression>{Template Sonoff TH16 Tasmota:sensors.temperature.last(#3)}&lt;={Template Sonoff TH16 Tasmota:sensors.dewpoint.last()}</expression>
+                </dependency>
+            </dependencies>
+        </trigger>
+    </triggers>
+    <graphs>
+        <graph>
+            <name>Temperature and humidity</name>
+            <graph_items>
+                <graph_item>
+                    <sortorder>1</sortorder>
+                    <color>1A7C11</color>
+                    <item>
+                        <host>Template Sonoff TH16 Tasmota</host>
+                        <key>sensors.temperature</key>
+                    </item>
+                </graph_item>
+                <graph_item>
+                    <sortorder>2</sortorder>
+                    <color>0040FF</color>
+                    <item>
+                        <host>Template Sonoff TH16 Tasmota</host>
+                        <key>sensors.humidity</key>
+                    </item>
+                </graph_item>
+            </graph_items>
+        </graph>
+        <graph>
+            <name>Wifi signal strength</name>
+            <graph_items>
+                <graph_item>
+                    <sortorder>1</sortorder>
+                    <color>1A7C11</color>
+                    <item>
+                        <host>Template Sonoff TH16 Tasmota</host>
+                        <key>general.wifisignal</key>
+                    </item>
+                </graph_item>
+            </graph_items>
+        </graph>
+    </graphs>
+    <value_maps>
+        <value_map>
+            <name>General ON OFF</name>
+            <mappings>
+                <mapping>
+                    <value>0</value>
+                    <newvalue>OFF</newvalue>
+                </mapping>
+                <mapping>
+                    <value>1</value>
+                    <newvalue>ON</newvalue>
+                </mapping>
+            </mappings>
+        </value_map>
+    </value_maps>
+</zabbix_export>
